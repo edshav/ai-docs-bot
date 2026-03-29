@@ -34,6 +34,19 @@ function doPost(e) {
     const text = message.text;
     const msgId = message.message_id;
 
+    // --- TASK 4.2: REFINEMENT CHECK ---
+    // Check if the user is replying to a message sent by the bot
+    if (message.reply_to_message) {
+      const parentMsgId = message.reply_to_message.message_id;
+      const existingDraft = DatabaseService.findDraftByMsgId(parentMsgId);
+
+      // If this reply is linked to a PENDING draft in our sheet
+      if (existingDraft && existingDraft.status === "PENDING") {
+        handleRefinement(chatId, parentMsgId, text, existingDraft);
+        return;
+      }
+    }
+
     // 2. Security & Trigger Check
     if (chatId !== PERMITTED_ID) return;
     if (!text.includes(TELEGRAM_BOT_USERNAME)) return;
@@ -168,4 +181,57 @@ function handleCancellation(chatId, messageId, draftId) {
     messageId,
     "🗑 *Update Canceled.* The file lock has been released.",
   );
+}
+
+function handleRefinement(chatId, originalBotMsgId, userFeedback, draft) {
+  try {
+    // 1. Notify the user we are working on the update
+    TelegramService.sendMessage(
+      chatId,
+      "🔄 *Refining the proposal based on your feedback...*",
+      {
+        reply_to_message_id: originalBotMsgId,
+      },
+    );
+
+    // 2. Fetch the current file again (to ensure we have the latest)
+    const githubFile = GitHubService.getFile(draft.file_path);
+
+    // 3. Call Gemini with "Refinement Context"
+    // We pass the previous draft_content so Gemini knows what to change
+    const prompt =
+      `Original File:\n${githubFile.content}\n\n` +
+      `Your previous suggestion:\n${draft.draft_content}\n\n` +
+      `User feedback for refinement: ${userFeedback}`;
+
+    const aiResponse = GeminiService.generateDiff(prompt, githubFile.content);
+
+    // 4. Update the Database with the NEW content (Task 3.1)
+    draft.draft_content = aiResponse.new_full_content;
+    DatabaseService.saveDraft(draft);
+
+    // 5. Update the original bot message with the new Diff
+    const responseText =
+      `📝 *Revised Proposal (v2):*\n\n` +
+      `*Summary:* ${aiResponse.summary}\n\n` +
+      `\`\`\`diff\n${aiResponse.diff}\n\`\`\``;
+
+    const keyboard = {
+      inline_keyboard: [
+        [
+          { text: "✅ Approve", callback_data: `approve_${originalBotMsgId}` },
+          { text: "🗑 Cancel", callback_data: `cancel_${originalBotMsgId}` },
+        ],
+      ],
+    };
+
+    TelegramService.editMessage(chatId, originalBotMsgId, responseText, {
+      reply_markup: JSON.stringify(keyboard),
+    });
+  } catch (err) {
+    TelegramService.sendMessage(
+      chatId,
+      "❌ *Refinement Failed:* " + err.message,
+    );
+  }
 }
