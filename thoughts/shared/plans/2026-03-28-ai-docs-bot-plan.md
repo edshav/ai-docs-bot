@@ -28,7 +28,7 @@
 
 **Goal:** Tie the services together to match the User Journey UX.
 
-- [ ] **Task 4.1 - Initiation Flow:** Detect `@doc_bot` mentions. Acquire Lock -> Verify no existing locks -> Lock active file (`status = PROCESSING`) -> Call GitHub -> Call Gemini -> Save state (`status = PENDING`) -> Generate `branch_name` using `tg_msg_id` -> Release Lock -> Respond via Telegram.
+- [x] **Task 4.1 - Initiation Flow:** Detect `@doc_bot` mentions. Acquire Lock -> Verify no existing locks -> Lock active file (`status = PROCESSING`) -> Call GitHub -> Call Gemini -> Save state (`status = PENDING`) -> Generate `branch_name` using `tg_msg_id` -> Release Lock -> Respond via Telegram.
 - [ ] **Task 4.2 - Refinement Flow:** Detect Telegram thread replies. Lookup draft -> Replicate generation loop -> Update the DB state -> Edit the existing Telegram diff message.
 - [ ] **Task 4.3 - Approval Flow (Callback):** Handle `[✅ Approve]` button. Fetch `PENDING` draft -> Hit GitHub API (Branch => Commit => PR) -> Update state to `COMMITTED` -> Edit Telegram message with PR deep-link.
 - [ ] **Task 4.4 - Cancellation Flow (Callback):** Handle `[🗑 Cancel]`. Update state to `CANCELED` -> Edit message to reflect aborted state.

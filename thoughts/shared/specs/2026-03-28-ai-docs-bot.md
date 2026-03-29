@@ -22,13 +22,13 @@ Currently, technical decisions and API discussions in Telegram are manually tran
 ## User Journey
 
 1. A user mentions `@doc_bot` in the permitted Telegram group, asking it to document a specific discussion or API change.
-2. The bot fetches the content of the single, predefined documentation file from GitHub.
+2. The bot acquires a state lock. If successful, it fetches the content of the single, predefined documentation file from GitHub.
 3. The bot passes the user's intent and current file content to Gemini 2.5 Flash.
 4. The bot replies in the group with a proposed Markdown `diff` and inline buttons: `[✅ Approve]`, `[🔄 Regenerate]`, `[🗑 Cancel]`.
-5. If the user replies to the bot's message with refinements (e.g., "Add the exact limit value"), the bot updates the diff.
+5. If the user replies to the bot's message with refinements, the bot **dynamically updates (morphs) the existing diff message** in place to prevent chat spam.
 6. The user clicks `✅ Approve`.
-7. The bot commits the file update, opens a Draft PR on GitHub assigned to the documentation maintainer.
-8. The PR description includes a direct link to the Telegram conversation for context.
+7. The bot dynamically edits the message to show a loading state while resolving the callback query.
+8. The bot commits the file update (with proper Base64 payloads), opens a Draft PR on GitHub, and edits the Telegram message one final time with a link to the PR.
 
 ## Functional Requirements
 
@@ -38,8 +38,9 @@ Currently, technical decisions and API discussions in Telegram are manually tran
 - A Telegram bot integration that listens to mentions and replies.
 - Integration with Gemini 2.5 Flash API to generate Markdown diffs from natural language prompts.
 - A Google Sheets backend to statefully store the `draft_content`, `status`, and Telegram `message_id`.
-- Concurrency protection: If User B triggers the bot while User A has a `PENDING` draft, the bot immediately replies with an error: "File locked by User A." Must enforce via GAS `LockService`.
-- Actionable error bubbling: Expose GitHub or Gemini errors to the Telegram chat. If unhandled, fallback to a "Something went wrong" message.
+- Concurrency protection: Wait up to 10 seconds to acquire a GAS `LockService` lock. State must be forcefully saved via `SpreadsheetApp.flush()` before releasing the lock.
+- Self-Healing Mechanics: Expose an automated `clearLock()` mechanic to forcefully recover from accidental deadlocks if external APIs fail mid-execution.
+- Actionable error bubbling: Expose GitHub or Gemini errors to the Telegram chat. Provide manual invocation functions (e.g., `manualAuthTest()`) to simplify testing without WebHook obfuscation.
 - Auto-assign the PR to the documentation maintainer.
 - PR descriptions must include a deep-link back to the original Telegram message.
 
@@ -66,14 +67,14 @@ Google Sheets utilized as a transient state store with the following schema:
 
 ### System Components
 
-- **Orchestrator (Google Apps Script):** Serverless webhook handler for Telegram, acting as the intelligent router.
+- **Orchestrator (Standalone Google Apps Script):** Serverless webhook handler utilizing the **Revealing Module Pattern** (encapsulated Services via `const TelegramService = (function() { ... })();`) for clean architecture.
 - **LLM Engine (Gemini 2.5 Flash):** Natural language processing, structure enforcement, and diff generation.
 
 ### Integrations
 
 - **Telegram Bot API:** Webhook ingestion, inline keyboards, message editing.
-- **GitHub REST API:** Fetching file blobs (`GET /contents`), creating branches, committing files, opening Pull Requests.
-- **Google Sheets API (via GAS `SpreadsheetApp`):** Key-value store for draft lifecycles.
+- **GitHub REST API:** Fetching file blobs (`GET /contents`), handling Base64 payloads natively, creating branches, committing files, opening Pull Requests.
+- **Google Sheets API (via GAS `SpreadsheetApp`):** Key-value store for draft lifecycles, mapped as a relational database via `SpreadsheetApp.openById()`.
 
 ### Security Model
 

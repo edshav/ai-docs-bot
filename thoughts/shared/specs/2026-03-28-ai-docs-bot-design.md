@@ -74,7 +74,7 @@ A system prompt forces the AI to return a structured JSON response for easy pars
 
 ### 4.3. Iterative Refinement Logic (Concurrency Control)
 
-To ensure strict concurrency and prevent Google Sheet state collisions when multiple users trigger the bot simultaneously, GAS `LockService` must be used.
+To ensure strict concurrency and prevent Google Sheet state collisions, GAS `LockService` alongside `SpreadsheetApp.flush()` must be used. We also utilize a `clearLock()` self-healing mechanic to recover from accidental external API deadlocks.
 
 ```javascript
 function processAIRequest(userText, context) {
@@ -115,8 +115,8 @@ function processAIRequest(userText, context) {
     > _Approve these changes?_
     > `[✅ Approve]` `[🗑 Cancel]`
 4.  **Refinement:** You notice a mistake. You **Reply** to the bot's preview message: `Add that the daily limit is 50k.`
-5.  **Update:** The bot updates its message (or sends a new one) with an **updated diff** that incorporates both the original text and the new limit.
-6.  **Commit & Handoff:** You click `✅ Approve`. The bot creates the branch `docs-patch-XXXX`, pushes the file, and opens a Draft PR assigned to the documentation maintainer. It also posts a link to the Pull Request, which includes a deep-link back to the original Telegram conversation.
+5.  **Update:** The bot **dynamically updates (morphs)** its existing message using `editMessageText` to reflect the new API response and diff seamlessly.
+6.  **Commit & Handoff:** You click `✅ Approve`. The bot orchestrates the callback, base64-encodes the blob for GitHub, creates the branch `docs-patch-XXXX`, pushes the file, and opens a Draft PR assigned to the documentation maintainer. It morphs the original message one final time with a direct PR link.
 
 ---
 
