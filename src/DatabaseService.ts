@@ -1,15 +1,15 @@
 /**
  * DatabaseService: Manages state and draft persistence in Google Sheets.
  */
-const DatabaseService = (function () {
+namespace DatabaseService {
   const scriptProps = PropertiesService.getScriptProperties();
-  const ssId = scriptProps.getProperty("DATABASE_SHEET_ID");
+  const ssId = scriptProps.getProperty("DATABASE_SHEET_ID") || "";
   const sheet = SpreadsheetApp.openById(ssId).getSheets()[0];
 
   /**
    * Task 3.1: Save or update a draft in the database.
    */
-  function saveDraft(data) {
+  export function saveDraft(data: DraftRecord) {
     // Get a public lock that lasts for 30 seconds
     const lock = LockService.getScriptLock();
     try {
@@ -44,8 +44,10 @@ const DatabaseService = (function () {
 
       // Force changes to save immediately before releasing the lock
       SpreadsheetApp.flush();
-    } catch (e) {
-      console.error("Lock Timeout or Database Error: " + e.toString());
+    } catch (e: unknown) {
+      console.error(
+        "Lock Timeout or Database Error: " + (e as Error).toString(),
+      );
       throw e;
     } finally {
       // Always release the lock so other users can use the bot
@@ -56,24 +58,26 @@ const DatabaseService = (function () {
   /**
    * Task 4.1/4.2: Find a draft to check for locks or refinements.
    */
-  function findDraftByMsgId(tgMsgId) {
+  export function findDraftByMsgId(
+    tgMsgId: string | number,
+  ): DraftRecord | null {
     const rows = sheet.getDataRange().getValues();
     const row = rows.find((r) => String(r[0]) === String(tgMsgId));
     if (!row) return null;
 
     return {
-      tg_msg_id: row[0],
-      branch_name: row[1],
-      file_path: row[2],
-      draft_content: row[3],
-      status: row[4],
+      tg_msg_id: row[0] as string | number,
+      branch_name: row[1] as string,
+      file_path: row[2] as string,
+      draft_content: row[3] as string,
+      status: row[4] as DraftRecord["status"],
     };
   }
 
   /**
    * Check if any file is currently being edited (status = PROCESSING or PENDING).
    */
-  function getActiveLock() {
+  export function getActiveLock() {
     const rows = sheet.getDataRange().getValues();
     // Look for any row that isn't 'COMMITTED' or 'CANCELED'
     return rows.find((r) => r[4] === "PROCESSING" || r[4] === "PENDING");
@@ -82,7 +86,7 @@ const DatabaseService = (function () {
   /**
    * Task 5.1: Force-clears any active locks for a specific file.
    */
-  function clearLock(filePath) {
+  export function clearLock(filePath: string) {
     const rows = sheet.getDataRange().getValues();
     for (let i = 1; i < rows.length; i++) {
       // If the file is locked (PENDING/PROCESSING), mark it as FAILED or CANCELED
@@ -96,43 +100,35 @@ const DatabaseService = (function () {
     SpreadsheetApp.flush();
   }
 
-  // Add to return block:
-  return {
-    saveDraft,
-    findDraftByMsgId,
-    getActiveLock,
-    clearLock,
-  };
-})();
+  /**
+   * Task 5.1: Automatically clears locks and returns affected IDs.
+   */
+  export function maintenanceCleanup() {
+    const rows = sheet.getDataRange().getValues();
+    const now = new Date().getTime();
+    const THIRTY_MINUTES = 30 * 60 * 1000;
+    const expiredIds: (string | number)[] = [];
 
-/**
- * Task 5.1: Automatically clears locks and returns affected IDs.
- */
-function maintenanceCleanup() {
-  const rows = sheet.getDataRange().getValues();
-  const now = new Date().getTime();
-  const THIRTY_MINUTES = 30 * 60 * 1000;
-  let expiredIds = [];
+    for (let i = 1; i < rows.length; i++) {
+      const status = rows[i][4];
+      const lastUpdatedStr = rows[i][5];
 
-  for (let i = 1; i < rows.length; i++) {
-    const status = rows[i][4];
-    const lastUpdatedStr = rows[i][5];
+      if (!lastUpdatedStr) continue;
 
-    if (!lastUpdatedStr) continue;
+      const lastUpdated = new Date(lastUpdatedStr).getTime();
 
-    const lastUpdated = new Date(lastUpdatedStr).getTime();
-
-    if (
-      (status === "PENDING" || status === "PROCESSING") &&
-      now - lastUpdated > THIRTY_MINUTES
-    ) {
-      sheet.getRange(i + 1, 4).setValue("EXPIRED"); // Update status
-      expiredIds.push(rows[i][0]); // Collect the TG Message ID
+      if (
+        (status === "PENDING" || status === "PROCESSING") &&
+        now - lastUpdated > THIRTY_MINUTES
+      ) {
+        sheet.getRange(i + 1, 4).setValue("EXPIRED"); // Update status
+        expiredIds.push(rows[i][0]); // Collect the TG Message ID
+      }
     }
-  }
 
-  if (expiredIds.length > 0) {
-    SpreadsheetApp.flush();
+    if (expiredIds.length > 0) {
+      SpreadsheetApp.flush();
+    }
+    return expiredIds;
   }
-  return expiredIds;
 }

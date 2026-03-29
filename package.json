@@ -1,0 +1,34 @@
+{
+  "name": "ai-driven-docs-workflow",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "format": "prettier --write \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit && eslint \"src/**/*.ts\"",
+    "deploy": "npm run typecheck && clasp push",
+    "open": "clasp open",
+    "watch": "clasp push --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/edshav/ai-docs-bot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/edshav/ai-docs-bot/issues"
+  },
+  "homepage": "https://github.com/edshav/ai-docs-bot#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@google/clasp": "^3.3.0",
+    "@types/google-apps-script": "^2.0.8",
+    "eslint": "^10.1.0",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.2"
+  }
+}

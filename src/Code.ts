@@ -1,10 +1,9 @@
-function doPost(e) {
+function doPost(e: GoogleAppsScript.Events.DoPost) {
   const scriptProps = PropertiesService.getScriptProperties();
   const PERMITTED_ID = scriptProps.getProperty("PERMITTED_GROUP_ID");
-  const TARGET_FILE = scriptProps.getProperty("TARGET_FILE_PATH");
-  const TELEGRAM_BOT_USERNAME = scriptProps.getProperty(
-    "TELEGRAM_BOT_USERNAME",
-  );
+  const TARGET_FILE = scriptProps.getProperty("TARGET_FILE_PATH") || "";
+  const TELEGRAM_BOT_USERNAME =
+    scriptProps.getProperty("TELEGRAM_BOT_USERNAME") || "";
 
   try {
     const contents = JSON.parse(e.postData.contents);
@@ -13,7 +12,7 @@ function doPost(e) {
     if (contents.callback_query) {
       const callback = contents.callback_query;
       const data = callback.data; // e.g., "approve_12345"
-      const chatId = callback.message.chat.id;
+      const chatId = String(callback.message.chat.id);
       const messageId = callback.message.message_id;
 
       // Acknowledge the click immediately (stops the loading spinner)
@@ -71,13 +70,14 @@ function doPost(e) {
 
     // 5. Fetch from GitHub (Task 2.2)
     const githubFile = GitHubService.getFile(TARGET_FILE);
+    if (!githubFile) throw new Error("Could not find TARGET_FILE in GitHub.");
 
     // 6. Generate AI Diff (Task 2.3)
     const aiResponse = GeminiService.generateDiff(text, githubFile.content);
 
     // 7. Save State to Database (Task 3.1)
     // We use the Telegram Status Message ID as our primary key for the buttons
-    const draftData = {
+    const draftData: DraftRecord = {
       tg_msg_id: statusMsg.result.message_id,
       branch_name: `docs-patch-${statusMsg.result.message_id}`,
       file_path: TARGET_FILE,
@@ -115,23 +115,23 @@ function doPost(e) {
         reply_markup: JSON.stringify(keyboard),
       },
     );
-  } catch (err) {
-    console.error("Orchestration Error: " + err.toString());
+  } catch (err: unknown) {
+    console.error("Orchestration Error: " + (err as Error).toString());
 
     // NEW: Clean up the lock so the bot doesn't stay stuck
     DatabaseService.clearLock(TARGET_FILE);
 
-    const debugId = scriptProps.getProperty("PERMITTED_GROUP_ID");
+    const debugId = scriptProps.getProperty("PERMITTED_GROUP_ID") || "";
     TelegramService.sendMessage(
       debugId,
       "❌ *System Error:* " +
-        err.message +
+        (err as Error).message +
         "\n\n_The file lock has been released._",
     );
   }
 }
 
-function handleApproval(chatId, messageId, draftId) {
+function handleApproval(chatId: string, messageId: number, draftId: string) {
   try {
     const draft = DatabaseService.findDraftByMsgId(draftId);
     if (
@@ -168,12 +168,19 @@ function handleApproval(chatId, messageId, draftId) {
     // Final Success Message (Task 4.3)
     const successText = `✅ *Success!* Documentation updated.\n\n[View Pull Request on GitHub](${prUrl})`;
     TelegramService.editMessage(chatId, messageId, successText);
-  } catch (err) {
-    TelegramService.sendMessage(chatId, "❌ *Commit Failed:* " + err.message);
+  } catch (err: unknown) {
+    TelegramService.sendMessage(
+      chatId,
+      "❌ *Commit Failed:* " + (err as Error).message,
+    );
   }
 }
 
-function handleCancellation(chatId, messageId, draftId) {
+function handleCancellation(
+  chatId: string,
+  messageId: number,
+  draftId: string,
+) {
   const draft = DatabaseService.findDraftByMsgId(draftId);
   if (draft) {
     draft.status = "CANCELED";
@@ -186,7 +193,12 @@ function handleCancellation(chatId, messageId, draftId) {
   );
 }
 
-function handleRefinement(chatId, originalBotMsgId, userFeedback, draft) {
+function handleRefinement(
+  chatId: string,
+  originalBotMsgId: number,
+  userFeedback: string,
+  draft: DraftRecord,
+) {
   try {
     // 1. Notify the user we are working on the update
     TelegramService.sendMessage(
@@ -199,6 +211,8 @@ function handleRefinement(chatId, originalBotMsgId, userFeedback, draft) {
 
     // 2. Fetch the current file again (to ensure we have the latest)
     const githubFile = GitHubService.getFile(draft.file_path);
+    if (!githubFile)
+      throw new Error("Could not find file in GitHub to refine.");
 
     // 3. Call Gemini with "Refinement Context"
     // We pass the previous draft_content so Gemini knows what to change
@@ -231,10 +245,10 @@ function handleRefinement(chatId, originalBotMsgId, userFeedback, draft) {
     TelegramService.editMessage(chatId, originalBotMsgId, responseText, {
       reply_markup: JSON.stringify(keyboard),
     });
-  } catch (err) {
+  } catch (err: unknown) {
     TelegramService.sendMessage(
       chatId,
-      "❌ *Refinement Failed:* " + err.message,
+      "❌ *Refinement Failed:* " + (err as Error).message,
     );
   }
 }
@@ -245,7 +259,7 @@ function handleRefinement(chatId, originalBotMsgId, userFeedback, draft) {
  */
 function runScheduledMaintenance() {
   const scriptProps = PropertiesService.getScriptProperties();
-  const chatId = scriptProps.getProperty("PERMITTED_GROUP_ID");
+  const chatId = scriptProps.getProperty("PERMITTED_GROUP_ID") || "";
 
   try {
     const cleanedIds = DatabaseService.maintenanceCleanup();
@@ -260,7 +274,7 @@ function runScheduledMaintenance() {
       TelegramService.sendMessage(chatId, message);
       console.log(`Maintenance: Cleaned ${count} records.`);
     }
-  } catch (e) {
-    console.error("Maintenance Error: " + e.toString());
+  } catch (e: unknown) {
+    console.error("Maintenance Error: " + (e as Error).toString());
   }
 }

@@ -1,20 +1,19 @@
 /**
  * GitHubService: Handles reading and writing to the GitHub repository.
  */
-const GitHubService = (function () {
+namespace GitHubService {
   const scriptProps = PropertiesService.getScriptProperties();
-  const TOKEN = scriptProps.getProperty("GITHUB_TOKEN");
-  const REPO = scriptProps.getProperty("GITHUB_REPO"); // Format: owner/repo
-  const TELEGRAM_BOT_USERNAME = scriptProps.getProperty(
-    "TELEGRAM_BOT_USERNAME",
-  );
+  const TOKEN = scriptProps.getProperty("GITHUB_TOKEN") || "";
+  const REPO = scriptProps.getProperty("GITHUB_REPO") || ""; // Format: owner/repo
+  const TELEGRAM_BOT_USERNAME =
+    scriptProps.getProperty("TELEGRAM_BOT_USERNAME") || "";
   const API_BASE = `https://api.github.com/repos/${REPO}`;
 
   /**
    * Fetches the content and SHA of a file from a specific branch.
    * Required for Task 4.1 (Initial fetch) and Task 5.2 (SHA validation).
    */
-  function getFile(path, branch = "main") {
+  export function getFile(path: string, branch: string = "main") {
     const url = `${API_BASE}/contents/${path}?ref=${branch}`;
     const result = _request(url);
 
@@ -34,20 +33,22 @@ const GitHubService = (function () {
   /**
    * Internal helper for GitHub API calls.
    */
-  function _request(url, options = {}) {
-    const params = {
-      method: options.method || "get",
+  function _request(url: string, options: FetchOptions = {}) {
+    const params: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
+      method: (options.method ||
+        "get") as GoogleAppsScript.URL_Fetch.HttpMethod,
       headers: {
         Authorization: `token ${TOKEN}`,
         Accept: "application/vnd.github.v3+json",
       },
       muteHttpExceptions: true,
+      ...(options.payload
+        ? {
+            contentType: "application/json",
+            payload: JSON.stringify(options.payload),
+          }
+        : {}),
     };
-
-    if (options.payload) {
-      params.contentType = "application/json";
-      params.payload = JSON.stringify(options.payload);
-    }
 
     const response = UrlFetchApp.fetch(url, params);
     const statusCode = response.getResponseCode();
@@ -64,7 +65,12 @@ const GitHubService = (function () {
   /**
    * Updated Task 4.3/5.2: Orchestration with SHA validation.
    */
-  function createFullPR(branchName, path, content, commitMessage) {
+  export function createFullPR(
+    branchName: string,
+    path: string,
+    content: string,
+    commitMessage: string,
+  ) {
     // 1. Check if the branch already exists
     const branchUrl = `${API_BASE}/branches/${branchName}`;
     const branchCheck = _request(branchUrl);
@@ -92,7 +98,7 @@ const GitHubService = (function () {
       payload: {
         message: commitMessage,
         content: Utilities.base64Encode(Utilities.newBlob(content).getBytes()),
-        sha: currentFile.sha,
+        sha: currentFile ? currentFile.sha : null,
         branch: branchName,
       },
     });
@@ -107,27 +113,21 @@ const GitHubService = (function () {
           title: `Docs Update: ${commitMessage}`,
           head: branchName,
           base: "main",
-          body: "Automated update via @doc_bot.",
+          body: `Automated update via ${TELEGRAM_BOT_USERNAME}.`,
         },
       });
-      return pr.html_url;
+      return pr ? pr.html_url : null;
     }
 
     // If it was an existing branch, return the known PR link (stored in DB or constructed)
     return `https://github.com/${REPO}/pulls`;
   }
-
-  // Public API
-  return {
-    getFile,
-    createFullPR,
-  };
-})();
+}
 
 function testGitHubRead() {
   const scriptProps = PropertiesService.getScriptProperties();
-  const filePath = scriptProps.getProperty("TARGET_FILE_PATH");
-  const repo = scriptProps.getProperty("GITHUB_REPO");
+  const filePath = scriptProps.getProperty("TARGET_FILE_PATH") || "";
+  const repo = scriptProps.getProperty("GITHUB_REPO") || "";
 
   console.log(`Checking repository: ${repo}`);
   console.log(`Targeting file: ${filePath}`);
@@ -144,7 +144,7 @@ function testGitHubRead() {
     } else {
       console.error("❌ Failed: Could not find the file or content is empty.");
     }
-  } catch (e) {
-    console.error("❌ Error during GitHub read: " + e.toString());
+  } catch (e: unknown) {
+    console.error("❌ Error during GitHub read: " + (e as Error).toString());
   }
 }

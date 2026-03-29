@@ -1,16 +1,16 @@
 /**
- * GeminiService: Interfaces with the Gemini 1.5 Flash API.
+ * GeminiService: Interfaces with the Gemini 2.5 Flash API.
  */
-const GeminiService = (function () {
+namespace GeminiService {
   const scriptProps = PropertiesService.getScriptProperties();
-  const API_KEY = scriptProps.getProperty("GEMINI_API_KEY");
+  const API_KEY = scriptProps.getProperty("GEMINI_API_KEY") || "";
   const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
 
   /**
    * Generates a diff and updated content based on user intent and existing file.
    * Milestone 2 - Task 2.3
    */
-  function generateDiff(userPrompt, currentContent) {
+  export function generateDiff(userPrompt: string, currentContent: string) {
     const systemInstruction = `You are a Technical Writer. Analyze the user message and current file content.
       Return ONLY a JSON object with these keys:
       "summary": "Short description of changes",
@@ -35,7 +35,7 @@ const GeminiService = (function () {
       },
     };
 
-    const options = {
+    const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
       method: "post",
       contentType: "application/json",
       payload: JSON.stringify(payload),
@@ -53,9 +53,7 @@ const GeminiService = (function () {
       throw new Error("Failed to generate documentation update.");
     }
   }
-
-  return { generateDiff };
-})();
+}
 
 function testGemini() {
   const result = GeminiService.generateDiff(
