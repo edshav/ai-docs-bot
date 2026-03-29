@@ -20,8 +20,8 @@ To automate the maintenance of technical documentation within a GitHub repositor
 To manage the state and concurrency of drafts, the following fields are used:
 
 - `tg_msg_id`: ID of the Telegram message containing the action buttons (Primary Key for callback lookups).
-- `branch_name`: The specific Git branch for the PR (e.g., `docs-patch-123`).
-- `file_path`: Path to the target file in the repository.
+- `branch_name`: The specific Git branch for the PR, utilizing `tg_msg_id` to prevent collisions (e.g., `docs-patch-<tg_msg_id>`).
+- `file_path`: Fixed path to the single target file in the repository (MVP constraint).
 - `draft_content`: The full generated Markdown content (hidden from the user, awaiting approval).
 - `status`: `PENDING` (awaiting user approval), `PROCESSING` (AI is generating), `COMMITTED` (successfully pushed to Git).
 
@@ -74,9 +74,12 @@ A system prompt forces the AI to return a structured JSON response for easy pars
 
 ### 4.3. Iterative Refinement Logic (Concurrency Control)
 
+To ensure strict concurrency and prevent Google Sheet state collisions when multiple users trigger the bot simultaneously, GAS `LockService` must be used.
+
 ```javascript
 function processAIRequest(userText, context) {
-  // 1. Lock the branch in DB (status = PROCESSING) to prevent race conditions
+  // 1. Acquire GAS LockService lock to prevent race conditions
+  //    Write lock to DB (status = PROCESSING) and release GAS lock
   // 2. Fetch current file content from GitHub
   //    (If context exists, fetch from the PR branch; otherwise, from 'main')
   const currentText = github.getFile(context ? context.branch : "main");
@@ -100,7 +103,8 @@ function processAIRequest(userText, context) {
 ## 5. User Experience (UX Flow)
 
 1.  **Initiation:** You type in the group: `@doc_bot Add an API description for payments using this message.`
-2.  **Draft Preview:** The bot replies:
+2.  **Concurrency Check:** If someone else is actively editing the single target file, the bot immediately replies: `❌ File locked by User A.`
+3.  **Draft Preview:** If clear, the bot replies:
     > **📝 Proposed Changes:**
     >
     > ```diff
@@ -110,9 +114,9 @@ function processAIRequest(userText, context) {
     >
     > _Approve these changes?_
     > `[✅ Approve]` `[🗑 Cancel]`
-3.  **Refinement:** You notice a mistake. You **Reply** to the bot's preview message: `Add that the daily limit is 50k.`
-4.  **Update:** The bot updates its message (or sends a new one) with an **updated diff** that incorporates both the original text and the new limit.
-5.  **Commit:** You click `✅ Approve`. The bot creates the branch `docs-patch-XXXX`, pushes the file, and provides a link to the Pull Request.
+4.  **Refinement:** You notice a mistake. You **Reply** to the bot's preview message: `Add that the daily limit is 50k.`
+5.  **Update:** The bot updates its message (or sends a new one) with an **updated diff** that incorporates both the original text and the new limit.
+6.  **Commit & Handoff:** You click `✅ Approve`. The bot creates the branch `docs-patch-XXXX`, pushes the file, and opens a Draft PR assigned to the documentation maintainer. It also posts a link to the Pull Request, which includes a deep-link back to the original Telegram conversation.
 
 ---
 
@@ -126,6 +130,7 @@ function processAIRequest(userText, context) {
 
 ## 7. Future Roadmap
 
-- Support for multi-file changes in a single PR.
+- **Multi-file changes:** Support modifying multiple documentation files (currently restricted to a single file MVP).
+- **Auto-merge capability:** Automatically merge trivial formatting/typo fixes upon approval.
 - Automated database cleanup when a PR is merged or closed on GitHub.
 - Integration with GitHub Webhooks to notify the Telegram group of comments made directly on GitHub.
