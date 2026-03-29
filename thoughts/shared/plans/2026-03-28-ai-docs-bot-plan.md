@@ -29,14 +29,14 @@
 **Goal:** Tie the services together to match the User Journey UX.
 
 - [x] **Task 4.1 - Initiation Flow:** Detect `@doc_bot` mentions. Acquire Lock -> Verify no existing locks -> Lock active file (`status = PROCESSING`) -> Call GitHub -> Call Gemini -> Save state (`status = PENDING`) -> Generate `branch_name` using `tg_msg_id` -> Release Lock -> Respond via Telegram.
-- [ ] **Task 4.2 - Refinement Flow:** Detect Telegram thread replies. Lookup draft -> Replicate generation loop -> Update the DB state -> Edit the existing Telegram diff message.
-- [ ] **Task 4.3 - Approval Flow (Callback):** Handle `[✅ Approve]` button. Fetch `PENDING` draft -> Hit GitHub API (Branch => Commit => PR) -> Update state to `COMMITTED` -> Edit Telegram message with PR deep-link.
-- [ ] **Task 4.4 - Cancellation Flow (Callback):** Handle `[🗑 Cancel]`. Update state to `CANCELED` -> Edit message to reflect aborted state.
+- [x] **Task 4.2 - Refinement Flow:** Detect Telegram thread replies. Lookup draft -> Replicate generation loop -> Update the DB state -> Edit the existing Telegram diff message.
+- [x] **Task 4.3 - Approval Flow (Callback):** Handle `[✅ Approve]` button. Fetch `PENDING` draft -> Hit GitHub API (Branch => Commit => PR) -> Update state to `COMMITTED` -> Edit Telegram message with PR deep-link.
+- [x] **Task 4.4 - Cancellation Flow (Callback):** Handle `[🗑 Cancel]`. Update state to `CANCELED` -> Edit message to reflect aborted state.
 
 ## Milestone 5: Hardening & Error Handling
 
 **Goal:** Ensure robustness and proper failure states.
 
-- [ ] **Task 5.1:** Add a global `try/catch` wrapper in `doPost` to catch unhandled errors and format them as conversational Telegram messages instead of silent failures.
-- [ ] **Task 5.2:** Add a secondary validation layer to the Approval Flow fetching the latest GitHub `sha` immediately before committing to guarantee no `409 Conflict` errors occur.
+- [x] **Task 5.1:** Add a global `try/catch` wrapper in `doPost` to catch unhandled errors and format them as conversational Telegram messages instead of silent failures.
+- [x] **Task 5.2:** Add a secondary validation layer to the Approval Flow fetching the latest GitHub `sha` immediately before committing to guarantee no `409 Conflict` errors occur.
 - [ ] **Task 5.3:** End-to-end live testing in the Telegram group chat.

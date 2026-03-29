@@ -104,3 +104,35 @@ const DatabaseService = (function () {
     clearLock,
   };
 })();
+
+/**
+ * Task 5.1: Automatically clears locks and returns affected IDs.
+ */
+function maintenanceCleanup() {
+  const rows = sheet.getDataRange().getValues();
+  const now = new Date().getTime();
+  const THIRTY_MINUTES = 30 * 60 * 1000;
+  let expiredIds = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const status = rows[i][4];
+    const lastUpdatedStr = rows[i][5];
+
+    if (!lastUpdatedStr) continue;
+
+    const lastUpdated = new Date(lastUpdatedStr).getTime();
+
+    if (
+      (status === "PENDING" || status === "PROCESSING") &&
+      now - lastUpdated > THIRTY_MINUTES
+    ) {
+      sheet.getRange(i + 1, 4).setValue("EXPIRED"); // Update status
+      expiredIds.push(rows[i][0]); // Collect the TG Message ID
+    }
+  }
+
+  if (expiredIds.length > 0) {
+    SpreadsheetApp.flush();
+  }
+  return expiredIds;
+}

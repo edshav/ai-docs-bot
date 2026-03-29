@@ -235,3 +235,29 @@ function handleRefinement(chatId, originalBotMsgId, userFeedback, draft) {
     );
   }
 }
+
+/**
+ * Triggered by the 30-minute timer.
+ * Cleans up stale locks and notifies the group.
+ */
+function runScheduledMaintenance() {
+  const scriptProps = PropertiesService.getScriptProperties();
+  const chatId = scriptProps.getProperty("PERMITTED_GROUP_ID");
+
+  try {
+    const cleanedIds = DatabaseService.maintenanceCleanup();
+
+    if (cleanedIds.length > 0) {
+      const count = cleanedIds.length;
+      const message =
+        `🧹 *Maintenance Report:* Found ${count} stale update(s). \n\n` +
+        `The file locks have been released and those drafts are now expired. ` +
+        `You can now start new documentation updates.`;
+
+      TelegramService.sendMessage(chatId, message);
+      console.log(`Maintenance: Cleaned ${count} records.`);
+    }
+  } catch (e) {
+    console.error("Maintenance Error: " + e.toString());
+  }
+}

@@ -39,7 +39,7 @@ Currently, technical decisions and API discussions in Telegram are manually tran
 - Integration with Gemini 2.5 Flash API to generate Markdown diffs from natural language prompts.
 - A Google Sheets backend to statefully store the `draft_content`, `status`, and Telegram `message_id`.
 - Concurrency protection: Wait up to 10 seconds to acquire a GAS `LockService` lock. State must be forcefully saved via `SpreadsheetApp.flush()` before releasing the lock.
-- Self-Healing Mechanics: Expose an automated `clearLock()` mechanic to forcefully recover from accidental deadlocks if external APIs fail mid-execution.
+- Self-Healing Mechanics: Implement an automated `clearLock()` mechanic to forcefully recover from accidental deadlocks if external APIs fail mid-execution, backed by a 30-minute Time-Driven Trigger (`runScheduledMaintenance`) to routinely sweep and gracefully expire abandoned locks.
 - Actionable error bubbling: Expose GitHub or Gemini errors to the Telegram chat. Provide manual invocation functions (e.g., `manualAuthTest()`) to simplify testing without WebHook obfuscation.
 - Auto-assign the PR to the documentation maintainer.
 - PR descriptions must include a deep-link back to the original Telegram message.
