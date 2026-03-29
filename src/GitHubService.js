@@ -5,6 +5,9 @@ const GitHubService = (function () {
   const scriptProps = PropertiesService.getScriptProperties();
   const TOKEN = scriptProps.getProperty("GITHUB_TOKEN");
   const REPO = scriptProps.getProperty("GITHUB_REPO"); // Format: owner/repo
+  const TELEGRAM_BOT_USERNAME = scriptProps.getProperty(
+    "TELEGRAM_BOT_USERNAME",
+  );
   const API_BASE = `https://api.github.com/repos/${REPO}`;
 
   /**
@@ -99,7 +102,7 @@ const GitHubService = (function () {
         title: `Docs Update: ${commitMessage}`,
         head: branchName,
         base: "main",
-        body: "Automated update via @doc_bot.",
+        body: `Automated update via ${TELEGRAM_BOT_USERNAME}.`,
       },
     });
 
