@@ -80,7 +80,7 @@ namespace DatabaseService {
   export function getActiveLock() {
     const rows = sheet.getDataRange().getValues();
     // Look for any row that isn't 'COMMITTED' or 'CANCELED'
-    return rows.find((r) => r[4] === "PROCESSING" || r[4] === "PENDING");
+    return rows.some((r) => r[4] === "PROCESSING" || r[4] === "PENDING");
   }
 
   /**
@@ -121,7 +121,7 @@ namespace DatabaseService {
         (status === "PENDING" || status === "PROCESSING") &&
         now - lastUpdated > THIRTY_MINUTES
       ) {
-        sheet.getRange(i + 1, 4).setValue("EXPIRED"); // Update status
+        sheet.getRange(i + 1, 5).setValue("EXPIRED"); // Update status
         expiredIds.push(rows[i][0]); // Collect the TG Message ID
       }
     }
