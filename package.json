@@ -5,10 +5,9 @@
   "main": "index.js",
   "scripts": {
     "format": "prettier --write \"src/**/*.ts\"",
-    "typecheck": "tsc --noEmit && eslint \"src/**/*.ts\"",
-    "deploy": "npm run typecheck && clasp push",
-    "open": "clasp open",
-    "watch": "clasp push --watch"
+    "build": "tsc && cp appsscript.json dist/ && eslint \"src/**/*.ts\"",
+    "push": "npm run build && npx clasp push",
+    "watch": "tsc -w & npx clasp push --watch"
   },
   "repository": {
     "type": "git",
