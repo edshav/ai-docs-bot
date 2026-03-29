@@ -7,7 +7,7 @@ To automate the maintenance of technical documentation within a GitHub repositor
 ## 2. Technology Stack (Zero-Cost / Serverless)
 
 - **Runtime:** Google Apps Script (GAS) – Free Serverless environment.
-- **AI Engine:** Gemini 1.5 Flash API (Free Tier).
+- **AI Engine:** Gemini 2.5 Flash API (Free Tier).
 - **Storage/State:** Google Sheets (as a lightweight DB) + GitHub REST API (Code storage).
 - **Interface:** Telegram Bot API (Webhooks + Inline Buttons).
 
