@@ -132,19 +132,36 @@ function doPost(e: GoogleAppsScript.Events.DoPost) {
 }
 
 function handleApproval(chatId: string, messageId: number, draftId: string) {
+  // 1. Get a Script Lock to prevent race conditions
+  const lock = LockService.getScriptLock();
+
   try {
+    // 2. Wait for up to 10 seconds to acquire the lock
+    lock.waitLock(10000);
+
     const draft = DatabaseService.findDraftByMsgId(draftId);
-    if (
-      !draft ||
-      (draft.status !== "PENDING" && draft.status !== "COMMITTED")
-    ) {
+
+    // 3. Strict Status Check: Only proceed if it is exactly PENDING
+    if (!draft || draft.status !== "PENDING") {
+      // If it's already COMMITTED or PROCESSING, tell the user and exit
       TelegramService.editMessage(
         chatId,
         messageId,
-        "❌ Error: Draft expired or already processed.",
+        "⚠️ This update has already been processed or is in progress.",
       );
       return;
     }
+
+    // 4. IMMEDIATE STATUS UPDATE (The "Flag")
+    // We mark it as 'PROCESSING' immediately so the next execution (which is waiting for the lock)
+    // will fail the status check above.
+    draft.status = "PROCESSING";
+    DatabaseService.saveDraft(draft);
+
+    // 5. RELEASE THE LOCK early
+    // We don't need to hold the lock for the slow GitHub API call,
+    // because the 'PROCESSING' status in the sheet now protects us.
+    lock.releaseLock();
 
     TelegramService.editMessage(
       chatId,
@@ -152,8 +169,7 @@ function handleApproval(chatId: string, messageId: number, draftId: string) {
       "🚀 *Committing to GitHub...*",
     );
 
-    // Task 2.2 Extension: Create the PR
-    // (We will add these methods to GitHubService in the next step)
+    // 6. Perform the GitHub Action
     const prUrl = GitHubService.createFullPR(
       draft.branch_name,
       draft.file_path,
@@ -161,14 +177,16 @@ function handleApproval(chatId: string, messageId: number, draftId: string) {
       "Update documentation via Telegram Bot",
     );
 
-    // Update Database (Task 3.1)
+    // 7. Finalize the state
     draft.status = "COMMITTED";
     DatabaseService.saveDraft(draft);
 
-    // Final Success Message (Task 4.3)
     const successText = `✅ *Success!* Documentation updated.\n\n[View Pull Request on GitHub](${prUrl})`;
     TelegramService.editMessage(chatId, messageId, successText);
   } catch (err: unknown) {
+    // If we crash, ensure the lock is released
+    if (lock.hasLock()) lock.releaseLock();
+
     TelegramService.sendMessage(
       chatId,
       "❌ *Commit Failed:* " + (err as Error).message,
