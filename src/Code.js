@@ -134,7 +134,10 @@ function doPost(e) {
 function handleApproval(chatId, messageId, draftId) {
   try {
     const draft = DatabaseService.findDraftByMsgId(draftId);
-    if (!draft || draft.status !== "PENDING") {
+    if (
+      !draft ||
+      (draft.status !== "PENDING" && draft.status !== "COMMITTED")
+    ) {
       TelegramService.editMessage(
         chatId,
         messageId,

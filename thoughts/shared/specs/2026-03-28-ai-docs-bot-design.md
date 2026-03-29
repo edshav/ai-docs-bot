@@ -117,12 +117,13 @@ function processAIRequest(userText, context) {
 4.  **Refinement:** You notice a mistake. You **Reply** to the bot's preview message: `Add that the daily limit is 50k.`
 5.  **Update:** The bot **dynamically updates (morphs)** its existing message using `editMessageText` to reflect the new API response and diff seamlessly.
 6.  **Commit & Handoff:** You click `✅ Approve`. The bot orchestrates the callback, base64-encodes the blob for GitHub, creates the branch `docs-patch-XXXX`, pushes the file, and opens a Draft PR assigned to the documentation maintainer. It morphs the original message one final time with a direct PR link.
+7.  **Iterative Commits:** If a mistake is noticed *after* approval, you can reply to the bot again. The bot will update the diff, and clicking `✅ Approve` will push a second commit to the already-open branch/PR smoothly.
 
 ---
 
 ## 6. Security & Constraints
 
-- **SHA Validation:** Before committing, the script performs a `GET /contents` to retrieve the latest file `sha`. This prevents `409 Conflict` errors if the repository changed during the AI generation process.
+- **SHA Validation:** Before committing, the script performs a `GET /contents?ref=branch` to retrieve the latest file `sha` from the specific branch. This prevents `409 Conflict` errors and enables multiple consecutive commits on the same branch.
 - **Secure Credentials:** GitHub tokens and AI API keys are stored in `Script Properties` (environment variables) and are never hardcoded.
 - **Access Control:** The bot is restricted to specific `group_id` values to prevent unauthorized usage and token consumption.
 

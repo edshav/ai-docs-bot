@@ -29,6 +29,7 @@ Currently, technical decisions and API discussions in Telegram are manually tran
 6. The user clicks `✅ Approve`.
 7. The bot dynamically edits the message to show a loading state while resolving the callback query.
 8. The bot commits the file update (with proper Base64 payloads), opens a Draft PR on GitHub, and edits the Telegram message one final time with a link to the PR.
+9. **Iterative PR Updates:** If the user replies with refinements *after* approval, the bot generates a new diff. Re-approving pushes an additional commit seamlessly to the existing open PR.
 
 ## Functional Requirements
 
@@ -41,6 +42,7 @@ Currently, technical decisions and API discussions in Telegram are manually tran
 - Concurrency protection: Wait up to 10 seconds to acquire a GAS `LockService` lock. State must be forcefully saved via `SpreadsheetApp.flush()` before releasing the lock.
 - Self-Healing Mechanics: Implement an automated `clearLock()` mechanic to forcefully recover from accidental deadlocks if external APIs fail mid-execution, backed by a 30-minute Time-Driven Trigger (`runScheduledMaintenance`) to routinely sweep and gracefully expire abandoned locks.
 - Actionable error bubbling: Expose GitHub or Gemini errors to the Telegram chat. Provide manual invocation functions (e.g., `manualAuthTest()`) to simplify testing without WebHook obfuscation.
+- Iterative PR Updates: Allow pushing subsequent commits to an already opened PR if a user decides to refine a `COMMITTED` bot message.
 - Auto-assign the PR to the documentation maintainer.
 - PR descriptions must include a deep-link back to the original Telegram message.
 
@@ -84,7 +86,7 @@ Google Sheets utilized as a transient state store with the following schema:
 
 ## Non-Functional Requirements
 
-- **Reliability:** GitHub `sha` validation is strictly performed immediately before committing. This prevents `409 Conflict` errors if the main branch changed during the draft review phase.
+- **Reliability:** GitHub `sha` validation is strictly performed by fetching the latest SHA from the *target branch* immediately before committing. This allows multiple consecutive commits to the same PR without `409 Conflict` errors.
 - **Cost:** Strictly $0 overhead by combining GAS, Google Sheets, free-tier Gemini API, and Telegram.
 
 ## Out of Scope

@@ -65,48 +65,56 @@ const GitHubService = (function () {
    * Updated Task 4.3/5.2: Orchestration with SHA validation.
    */
   function createFullPR(branchName, path, content, commitMessage) {
-    // 1. Get the current 'main' branch head to branch off from
-    const mainBranch = _request(`${API_BASE}/branches/main`);
-    if (!mainBranch) throw new Error("Could not find main branch.");
-    const latestSha = mainBranch.commit.sha;
+    // 1. Check if the branch already exists
+    const branchUrl = `${API_BASE}/branches/${branchName}`;
+    const branchCheck = _request(branchUrl);
 
-    // 2. Create the new branch
-    _request(`${API_BASE}/git/refs`, {
-      method: "post",
-      payload: { ref: `refs/heads/${branchName}`, sha: latestSha },
-    });
+    if (!branchCheck) {
+      // SCENARIO A: NEW BRANCH
+      const mainBranch = _request(`${API_BASE}/branches/main`);
+      _request(`${API_BASE}/git/refs`, {
+        method: "post",
+        payload: {
+          ref: `refs/heads/${branchName}`,
+          sha: mainBranch.commit.sha,
+        },
+      });
+    }
 
-    // 3. FETCH THE LATEST FILE SHA (Task 5.2 - Critical Security)
-    // We do this immediately before the 'put' to minimize the race condition window.
-    const currentFile = getFile(path);
-    if (!currentFile) throw new Error("File disappeared from GitHub!");
+    // 2. Fetch the latest file SHA from the SPECIFIC branch (not main!)
+    // This is critical for Task 5.2 to avoid conflicts on the second commit
+    const url = `${API_BASE}/contents/${path}?ref=${branchName}`;
+    const currentFile = _request(url);
 
-    // 4. Push the commit with the validated SHA
+    // 3. Push the commit to the existing/new branch
     const commitResult = _request(`${API_BASE}/contents/${path}`, {
       method: "put",
       payload: {
         message: commitMessage,
         content: Utilities.base64Encode(Utilities.newBlob(content).getBytes()),
-        sha: currentFile.sha, // If this doesn't match the repo, GitHub returns 409
+        sha: currentFile.sha,
         branch: branchName,
       },
     });
 
-    if (!commitResult)
-      throw new Error("GitHub rejected the commit. Possible SHA mismatch.");
+    if (!commitResult) throw new Error("GitHub rejected the commit.");
 
-    // 5. Create PR
-    const pr = _request(`${API_BASE}/pulls`, {
-      method: "post",
-      payload: {
-        title: `Docs Update: ${commitMessage}`,
-        head: branchName,
-        base: "main",
-        body: `Automated update via ${TELEGRAM_BOT_USERNAME}.`,
-      },
-    });
+    // 4. Only create a PR if one doesn't already exist
+    if (!branchCheck) {
+      const pr = _request(`${API_BASE}/pulls`, {
+        method: "post",
+        payload: {
+          title: `Docs Update: ${commitMessage}`,
+          head: branchName,
+          base: "main",
+          body: "Automated update via @doc_bot.",
+        },
+      });
+      return pr.html_url;
+    }
 
-    return pr.html_url;
+    // If it was an existing branch, return the known PR link (stored in DB or constructed)
+    return `https://github.com/${REPO}/pulls`;
   }
 
   // Public API
